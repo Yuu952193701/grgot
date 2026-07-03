@@ -1441,8 +1441,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Check if status has changed
         let updatedHistory = updates.history || b.history || [];
         if (updates.history === undefined && updates.status !== undefined && updates.status !== b.status) {
-          const currentIndex = bidWorkflow.findIndex(step => step.name === b.status);
-          const nextIndex = bidWorkflow.findIndex(step => step.name === updates.status);
+          const tpl = workflowTemplates.find(t => t.id === (updates.templateId || b.templateId)) ||
+                      workflowTemplates.find(t => t.module === 'bid' && t.isDefault) ||
+                      workflowTemplates.find(t => t.module === 'bid');
+          const currentWorkflow = tpl ? tpl.steps : bidWorkflow;
+
+          const currentIndex = currentWorkflow.findIndex(step => step.name === b.status);
+          const nextIndex = currentWorkflow.findIndex(step => step.name === updates.status);
           let type = '流程变更';
           if (currentIndex !== -1 && nextIndex !== -1) {
             if (nextIndex > currentIndex) type = '流程推进';
@@ -1554,8 +1559,13 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Check if status has changed
         let updatedHistory = updates.history || p.history || [];
         if (updates.history === undefined && updates.status !== undefined && updates.status !== p.status) {
-          const currentIndex = preWorkflow.findIndex(step => step.name === p.status);
-          const nextIndex = preWorkflow.findIndex(step => step.name === updates.status);
+          const tpl = workflowTemplates.find(t => t.id === (updates.templateId || p.templateId)) ||
+                      workflowTemplates.find(t => t.module === 'pre' && t.isDefault) ||
+                      workflowTemplates.find(t => t.module === 'pre');
+          const currentWorkflow = tpl ? tpl.steps : preWorkflow;
+
+          const currentIndex = currentWorkflow.findIndex(step => step.name === p.status);
+          const nextIndex = currentWorkflow.findIndex(step => step.name === updates.status);
           let type = '流程变更';
           if (currentIndex !== -1 && nextIndex !== -1) {
             if (nextIndex > currentIndex) type = '流程推进';
@@ -1668,7 +1678,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         // Check if status has changed
         let updatedHistory = updates.history || c.history || [];
         if (updates.history === undefined && updates.status !== undefined && updates.status !== c.status) {
-          const currentWorkflow = c.contractType === 'service' ? postServiceWorkflow : postWorkflow;
+          const tpl = workflowTemplates.find(t => t.id === (updates.templateId || c.templateId)) ||
+                      workflowTemplates.find(t => t.module === (c.contractType === 'service' ? 'service' : 'purchase') && t.isDefault) ||
+                      workflowTemplates.find(t => t.module === (c.contractType === 'service' ? 'service' : 'purchase'));
+          const currentWorkflow = tpl ? tpl.steps : (c.contractType === 'service' ? postServiceWorkflow : postWorkflow);
+
           const currentIndex = currentWorkflow.findIndex(step => step.name === c.status);
           const nextIndex = currentWorkflow.findIndex(step => step.name === updates.status);
           let type = '流程变更';

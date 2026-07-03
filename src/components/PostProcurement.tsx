@@ -33,8 +33,7 @@ export const PostProcurement: React.FC<PostProcurementProps> = ({ contractType =
 
   // Get all unique workflow steps across all templates of this module
   const activeModuleTemplates = workflowTemplates.filter(t => 
-    t.module === (contractType === 'service' ? 'service' : 'purchase') || 
-    (contractType === 'service' ? t.module === 'post-service' : t.module === 'post')
+    t.module === (contractType === 'service' ? 'service' : 'purchase')
   );
   
   const allWorkflowSteps = activeModuleTemplates.length > 0 
@@ -77,7 +76,7 @@ export const PostProcurement: React.FC<PostProcurementProps> = ({ contractType =
   // Auto select default template of this module on create modal open
   useEffect(() => {
     if (showCreateModal) {
-      const moduleType = contractType === 'service' ? 'post-service' : 'post';
+      const moduleType = contractType === 'service' ? 'service' : 'purchase';
       const moduleTemplates = workflowTemplates.filter(t => t.module === moduleType);
       const defaultTpl = moduleTemplates.find(t => t.isDefault) || moduleTemplates[0];
       if (defaultTpl) {
@@ -91,8 +90,7 @@ export const PostProcurement: React.FC<PostProcurementProps> = ({ contractType =
   const getContractStatusColor = (contract: Contract) => {
     const tpl = workflowTemplates.find(t => t.id === contract.templateId) || 
                 workflowTemplates.find(t => t.module === (contractType === 'service' ? 'service' : 'purchase') && t.isDefault) ||
-                workflowTemplates.find(t => t.module === (contractType === 'service' ? 'service' : 'purchase')) ||
-                (contractType === 'service' ? workflowTemplates.find(t => t.module === 'post-service') : workflowTemplates.find(t => t.module === 'post'));
+                workflowTemplates.find(t => t.module === (contractType === 'service' ? 'service' : 'purchase'));
     const steps = tpl?.steps || (contractType === 'service' ? postServiceWorkflow : postWorkflow);
     const step = steps.find(s => s.name === contract.status);
     return step ? step.color : 'green';
@@ -102,8 +100,7 @@ export const PostProcurement: React.FC<PostProcurementProps> = ({ contractType =
   const canMove = (contract: Contract) => {
     const tpl = workflowTemplates.find(t => t.id === contract.templateId) || 
                 workflowTemplates.find(t => t.module === (contractType === 'service' ? 'service' : 'purchase') && t.isDefault) ||
-                workflowTemplates.find(t => t.module === (contractType === 'service' ? 'service' : 'purchase')) ||
-                (contractType === 'service' ? workflowTemplates.find(t => t.module === 'post-service') : workflowTemplates.find(t => t.module === 'post'));
+                workflowTemplates.find(t => t.module === (contractType === 'service' ? 'service' : 'purchase'));
     const steps = tpl?.steps || (contractType === 'service' ? postServiceWorkflow : postWorkflow);
     const currentIndex = steps.findIndex(s => s.name === contract.status);
     return {
@@ -206,7 +203,7 @@ export const PostProcurement: React.FC<PostProcurementProps> = ({ contractType =
 
     const cleanCode = newContractCode.trim() || newContractName.trim();
 
-    const moduleType = contractType === 'service' ? 'post-service' : 'post';
+    const moduleType = contractType === 'service' ? 'service' : 'purchase';
     const moduleTemplates = workflowTemplates.filter(t => t.module === moduleType);
     const selectedTpl = workflowTemplates.find(t => t.id === newContractTemplateId) || moduleTemplates.find(t => t.isDefault) || moduleTemplates[0];
 
@@ -1050,7 +1047,7 @@ export const PostProcurement: React.FC<PostProcurementProps> = ({ contractType =
                     }}
                     className="w-full px-3 py-1.5 rounded-md border border-slate-200 text-xs focus:ring-1 focus:ring-blue-100 focus:border-blue-500 focus:outline-none bg-white font-semibold text-slate-700 cursor-pointer"
                   >
-                    {workflowTemplates.filter(t => t.module === (contractType === 'service' ? 'post-service' : 'post')).map(tpl => (
+                    {workflowTemplates.filter(t => t.module === (contractType === 'service' ? 'service' : 'purchase')).map(tpl => (
                       <option key={tpl.id} value={tpl.id}>
                         {tpl.name} {tpl.isDefault ? '(默认)' : ''}
                       </option>

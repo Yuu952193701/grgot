@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useAppState } from '../context/AppContext';
-import { DemandProject, Contract, SHIPS, SettlementBatch, BidProject, ProcessHistory } from '../types';
+import { DemandProject, Contract, SHIPS, SettlementBatch, BidProject, ProcessHistory, WorkflowTemplate } from '../types';
 import { X, Calendar, Plus, Trash2, Tag, AlertTriangle, Search, Link, Layers } from 'lucide-react';
 import { formatFullChineseDate, isOverdue } from '../data';
 import { SupplierDetailsModal } from './SupplierDetailsModal';
@@ -56,6 +56,9 @@ export const ItemDetailsModal: React.FC<ItemDetailsModalProps> = ({ itemId, type
 
   const [newTag, setNewTag] = useState('');
   const [showTagOptions, setShowTagOptions] = useState(false);
+  const [switchingTemplate, setSwitchingTemplate] = useState<WorkflowTemplate | null>(null);
+  const [isHistoryExpanded, setIsHistoryExpanded] = useState<boolean>(false);
+  const [expandedStates, setExpandedStates] = useState<Record<string, boolean>>({});
 
   // Supplier quick-add states
   const [quickSupName, setQuickSupName] = useState('');
@@ -130,7 +133,7 @@ export const ItemDetailsModal: React.FC<ItemDetailsModalProps> = ({ itemId, type
     contractItem?.settlements || []
   );
   const [supplierId, setSupplierId] = useState<string>(
-    contractItem?.supplierId || ''
+    type === 'contract' ? (contractItem?.supplierId || '') : (bidItem?.supplierId || '')
   );
   const [amount, setAmount] = useState<string>(
     contractItem?.amount || ''
@@ -180,6 +183,7 @@ export const ItemDetailsModal: React.FC<ItemDetailsModalProps> = ({ itemId, type
         setTenderUnit(bidItem.tenderUnit || '');
         setResultStatus(bidItem.resultStatus || '进行中');
         setBidNo(bidItem.id);
+        setSupplierId(bidItem.supplierId || '');
       }
     }
   }, [itemId, type, currentItem]);
@@ -320,39 +324,14 @@ export const ItemDetailsModal: React.FC<ItemDetailsModalProps> = ({ itemId, type
   const availableTemplates = workflowTemplates.filter(t => {
     if (type === 'project') return t.module === 'pre';
     if (type === 'bid') return t.module === 'bid';
-    return t.module === (contractItem?.contractType === 'service' ? 'post-service' : 'post');
+    return t.module === (contractItem?.contractType === 'service' ? 'service' : 'purchase');
   });
 
   // Handle template selection change with user confirmation & logs tracking
   const handleSwitchTemplate = (newTplId: string) => {
     const targetTpl = workflowTemplates.find(t => t.id === newTplId);
     if (!targetTpl) return;
-
-    const proceed = window.confirm(`修改流程模板将会重置当前业务的流转状态，且历史流转日志无法撤销，确定修改吗？`);
-    if (!proceed) return;
-
-    const firstStepName = targetTpl.steps[0]?.name || '未知状态';
-
-    // Add a custom process history log item for the template switch and status reset
-    const newHistoryEntry: ProcessHistory = {
-      id: `hist-tpl-switch-${Date.now()}`,
-      time: formatDateTime(new Date()),
-      type: '流程推进',
-      toStep: firstStepName,
-      operator: DEFAULT_OPERATOR,
-      comment: `修改流程模板为【${targetTpl.name}】，状态重置为【${firstStepName}】`
-    };
-
-    const updatedHistory = [...historyList, newHistoryEntry];
-
-    // Reset local status and write changes to state
-    setStatus(firstStepName);
-    handleSaveField({
-      templateId: targetTpl.id,
-      templateName: targetTpl.name,
-      status: firstStepName,
-      history: updatedHistory
-    });
+    setSwitchingTemplate(targetTpl);
   };
 
   // Filter existing contracts that contain the selected project/bid's ship (allowing overlapping ships for multiselect)
@@ -617,7 +596,7 @@ export const ItemDetailsModal: React.FC<ItemDetailsModalProps> = ({ itemId, type
             </div>
 
             {/* 对应公司 模块 */}
-            {type === 'contract' && (
+            {(type === 'contract' || type === 'bid') && (
               <div className="col-span-1 md:col-span-2 bg-slate-50/50 border border-slate-200 rounded-xl p-4 space-y-3">
                 <div className="flex justify-between items-center border-b border-slate-200/60 pb-2">
                   <label className="text-xs font-bold text-slate-700 flex items-center space-x-1.5">
@@ -881,10 +860,11 @@ export const ItemDetailsModal: React.FC<ItemDetailsModalProps> = ({ itemId, type
                 <div className="flex items-center space-x-2">
                   <span className="text-[10px] text-slate-500 font-bold whitespace-nowrap">切换模板:</span>
                   <select
-                    value={currentItem?.templateId || availableTemplates.find(t => t.isDefault)?.id || availableTemplates[0]?.id || ''}
+                    value={currentItem?.templateId || ''}
                     onChange={(e) => handleSwitchTemplate(e.target.value)}
                     className="px-2.5 py-1 rounded-md border border-slate-200 text-xs focus:ring-1 focus:ring-blue-100 focus:border-blue-500 focus:outline-none bg-white font-bold text-slate-700 cursor-pointer shadow-3xs max-w-[200px]"
                   >
+                    {!currentItem?.templateId && <option value="">-- 请选择流程模板 --</option>}
                     {availableTemplates.map(tpl => (
                       <option key={tpl.id} value={tpl.id}>
                         {tpl.name} {tpl.isDefault ? '(默认)' : ''}
@@ -1094,11 +1074,32 @@ export const ItemDetailsModal: React.FC<ItemDetailsModalProps> = ({ itemId, type
                             <select
                               value={batch.status}
                               onChange={(e) => {
-                                const updated = settlements.map(b => b.id === batch.id ? { ...b, status: e.target.value } : b);
+                                const prevStatus = batch.status;
+                                const newStatus = e.target.value;
+                                const currentIndex = activeSteps.findIndex(s => s.name === prevStatus);
+                                const nextIndex = activeSteps.findIndex(s => s.name === newStatus);
+                                let changeType = '流程变更';
+                                if (currentIndex !== -1 && nextIndex !== -1) {
+                                  if (nextIndex > currentIndex) changeType = '流程推进';
+                                  else if (nextIndex < currentIndex) changeType = '流程回退';
+                                }
+                                
+                                const newHistRecord = {
+                                  id: `hist-batch-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+                                  time: formatDateTime(new Date()),
+                                  type: changeType,
+                                  fromStep: prevStatus,
+                                  toStep: newStatus,
+                                  operator: DEFAULT_OPERATOR,
+                                  comment: `结算批次【${batch.name}】状态从【${prevStatus}】变更至【${newStatus}】`
+                                };
+                                
+                                const updatedHistory = [...(batch.history || []), newHistRecord];
+                                const updated = settlements.map(b => b.id === batch.id ? { ...b, status: newStatus, history: updatedHistory } : b);
                                 setSettlements(updated);
                                 handleSaveField({ settlements: updated });
                               }}
-                              className="w-full px-2 py-1 bg-white border border-slate-200 rounded-md text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500"
+                              className="w-full px-2 py-1 bg-white border border-slate-200 rounded-md text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-blue-500 text-slate-700"
                             >
                               {activeSteps.map(step => {
                                 const colorEmoji = step.color === 'yellow' ? '🟡' : step.color === 'green' ? '🟢' : step.color === 'blue' ? '🔵' : step.color === 'red' ? '🔴' : '⚪';
@@ -1184,6 +1185,56 @@ export const ItemDetailsModal: React.FC<ItemDetailsModalProps> = ({ itemId, type
                         className="w-full px-2.5 py-1 bg-white border border-slate-200 rounded-md text-xs focus:outline-none focus:ring-1 focus:ring-blue-500 text-slate-700"
                         placeholder="输入备注或说明..."
                       />
+                    </div>
+
+                    {/* Collapsible history list for this batch */}
+                    <div className="border border-slate-200 bg-white rounded-lg overflow-hidden mt-3 shadow-3xs">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const idKey = `exp-batch-${batch.id}`;
+                          setExpandedStates(prev => ({ ...prev, [idKey]: !prev[idKey] }));
+                        }}
+                        className="w-full px-3 py-1.5 bg-slate-100 hover:bg-slate-200/50 transition-colors flex items-center justify-between text-[10px] font-bold text-slate-600 cursor-pointer"
+                      >
+                        <span className="flex items-center space-x-1.5">
+                          <span>📋 【{batch.name}】历史流转记录</span>
+                          <span className="bg-slate-250 text-slate-500 px-1 py-0.2 rounded-full text-[9px] font-normal">
+                            {(batch.history || []).length} 条
+                          </span>
+                        </span>
+                        <span>{expandedStates[`exp-batch-${batch.id}`] ? '收起 ▲' : '展开 ▼'}</span>
+                      </button>
+                      {expandedStates[`exp-batch-${batch.id}`] && (
+                        <div className="p-3 bg-white border-t border-slate-100 text-[11px] space-y-2.5 max-h-40 overflow-y-auto">
+                          {(!batch.history || batch.history.length === 0) ? (
+                            <div className="text-[10px] text-slate-400 text-center py-2">暂无流转历史记录</div>
+                          ) : (
+                            <div className="border-l border-slate-200 pl-3 ml-1.5 space-y-2.5 relative">
+                              {batch.history.map((item, idx) => {
+                                const badgeClass = getTypeBadgeClass(item.type);
+                                return (
+                                  <div key={item.id || idx} className="relative group text-[10px]">
+                                    <span className="absolute -left-[16px] top-1 flex h-1.5 w-1.5 rounded-full bg-slate-300 ring-2 ring-white" />
+                                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
+                                      <div className="flex items-center space-x-1 flex-wrap">
+                                        <span className={`px-1 py-0.2 rounded text-[8px] font-bold border ${badgeClass}`}>{item.type}</span>
+                                        {item.fromStep ? (
+                                          <span className="text-slate-600 font-medium">{item.fromStep} → {item.toStep}</span>
+                                        ) : (
+                                          <span className="text-slate-600 font-medium">初始: {item.toStep}</span>
+                                        )}
+                                      </div>
+                                      <div className="text-slate-400 font-mono text-[8px]">{item.time} ({item.operator})</div>
+                                    </div>
+                                    {item.comment && <div className="text-slate-400 text-[9px] mt-0.5">💬 {item.comment}</div>}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -1787,68 +1838,84 @@ export const ItemDetailsModal: React.FC<ItemDetailsModalProps> = ({ itemId, type
 
           <hr className="border-slate-100" />
 
-          {/* 流程历史记录 Timeline */}
-          <div>
-            <label className="block text-xs font-semibold text-slate-400 uppercase tracking-widest mb-3">
-              📋 流程历史记录 (Process History)
-            </label>
+          {/* 流程历史记录 Timeline (Collapsible) */}
+          <div className="border border-slate-150 rounded-xl bg-slate-50/30 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setIsHistoryExpanded(!isHistoryExpanded)}
+              className="w-full px-4 py-3 bg-slate-50 hover:bg-slate-100/80 transition-colors flex items-center justify-between font-bold text-xs text-slate-700 cursor-pointer"
+            >
+              <span className="flex items-center space-x-2">
+                <span>📋 流程历史流转记录 (Process History)</span>
+                <span className="font-mono text-[10px] bg-slate-200 text-slate-500 px-1.5 py-0.5 rounded-full font-normal">
+                  {historyList.length} 条记录
+                </span>
+              </span>
+              <span className="text-slate-400 font-medium transition-transform duration-200">
+                {isHistoryExpanded ? '收起 ▲' : '展开 ▼'}
+              </span>
+            </button>
             
-            {historyList.length === 0 ? (
-              <div className="text-xs text-slate-400 bg-slate-50 p-3 rounded-lg border border-slate-200 border-dashed text-center">
-                暂无流程历史记录。
-              </div>
-            ) : (
-              <div className="relative border-l border-slate-200 ml-2 pl-4 space-y-4">
-                {historyList.map((item, idx) => {
-                  const badgeClass = getTypeBadgeClass(item.type);
-                  return (
-                    <div key={item.id || idx} className="relative group">
-                      {/* Timeline Dot */}
-                      <span className="absolute -left-[21px] top-1 flex h-2 w-2 rounded-full bg-slate-300 ring-4 ring-white group-hover:bg-blue-500 transition-colors" />
-                      
-                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs">
-                        <div className="flex items-center space-x-2 flex-wrap gap-y-1">
-                          {/* Type Badge */}
-                          <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${badgeClass}`}>
-                            {item.type}
-                          </span>
+            {isHistoryExpanded && (
+              <div className="p-4 border-t border-slate-100 bg-white">
+                {historyList.length === 0 ? (
+                  <div className="text-xs text-slate-400 p-4 border border-dashed border-slate-200 rounded-lg text-center bg-slate-50/50">
+                    暂无流程历史记录。
+                  </div>
+                ) : (
+                  <div className="relative border-l border-slate-200 ml-2 pl-4 space-y-4 max-h-80 overflow-y-auto pr-1">
+                    {historyList.map((item, idx) => {
+                      const badgeClass = getTypeBadgeClass(item.type);
+                      return (
+                        <div key={item.id || idx} className="relative group">
+                          {/* Timeline Dot */}
+                          <span className="absolute -left-[21px] top-1 flex h-2 w-2 rounded-full bg-slate-300 ring-4 ring-white group-hover:bg-blue-500 transition-colors" />
                           
-                          {/* Step transition */}
-                          {item.fromStep ? (
-                            <div className="flex items-center space-x-1.5 font-medium text-slate-700">
-                              <span className="bg-slate-100 px-1.5 py-0.5 rounded text-[10px] text-slate-600 font-semibold">{item.fromStep}</span>
-                              <span className="text-slate-400 text-[10px]">→</span>
-                              <span className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-blue-100/50">{item.toStep}</span>
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 text-xs">
+                            <div className="flex items-center space-x-2 flex-wrap gap-y-1">
+                              {/* Type Badge */}
+                              <span className={`px-1.5 py-0.5 rounded text-[10px] font-bold border ${badgeClass}`}>
+                                {item.type}
+                              </span>
+                              
+                              {/* Step transition */}
+                              {item.fromStep ? (
+                                <div className="flex items-center space-x-1.5 font-medium text-slate-700">
+                                  <span className="bg-slate-100 px-1.5 py-0.5 rounded text-[10px] text-slate-600 font-semibold">{item.fromStep}</span>
+                                  <span className="text-slate-400 text-[10px]">→</span>
+                                  <span className="bg-blue-50 text-blue-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-blue-100/50">{item.toStep}</span>
+                                </div>
+                              ) : (
+                                <div className="font-semibold text-slate-700 flex items-center space-x-1">
+                                  <span className="text-slate-400">初始流程:</span>
+                                  <span className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-emerald-100/50">{item.toStep}</span>
+                                </div>
+                              )}
                             </div>
-                          ) : (
-                            <div className="font-semibold text-slate-700 flex items-center space-x-1">
-                              <span className="text-slate-400">初始流程:</span>
-                              <span className="bg-emerald-50 text-emerald-700 px-1.5 py-0.5 rounded text-[10px] font-bold border border-emerald-100/50">{item.toStep}</span>
+
+                            {/* Metadata: Operator & Time */}
+                            <div className="flex items-center space-x-3 text-slate-400 text-[10px] font-mono">
+                              <span className="flex items-center space-x-1">
+                                <span className="text-slate-300">👤</span>
+                                <span>{item.operator}</span>
+                              </span>
+                              <span className="flex items-center space-x-1">
+                                <span className="text-slate-300">🕒</span>
+                                <span>{item.time}</span>
+                              </span>
+                            </div>
+                          </div>
+
+                          {item.comment && (
+                            <div className="text-[11px] text-slate-500 bg-slate-50/70 border border-slate-150 px-2.5 py-1.5 rounded-lg font-medium mt-1.5 ml-1">
+                              💬 {item.comment}
                             </div>
                           )}
                         </div>
-
-                        {/* Metadata: Operator & Time */}
-                        <div className="flex items-center space-x-3 text-slate-400 text-[10px] font-mono">
-                          <span className="flex items-center space-x-1">
-                            <span className="text-slate-300">👤</span>
-                            <span>{item.operator}</span>
-                          </span>
-                          <span className="flex items-center space-x-1">
-                            <span className="text-slate-300">🕒</span>
-                            <span>{item.time}</span>
-                          </span>
-                        </div>
-                      </div>
-
-                      {item.comment && (
-                        <div className="text-[11px] text-slate-500 bg-slate-50/70 border border-slate-150 px-2.5 py-1.5 rounded-lg font-medium mt-1.5 ml-1">
-                          💬 {item.comment}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -1884,6 +1951,76 @@ export const ItemDetailsModal: React.FC<ItemDetailsModalProps> = ({ itemId, type
             setActiveSupplierIdForDetailModal(null);
           }}
         />
+      )}
+
+      {switchingTemplate && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-[60] p-6 animate-fade-in">
+          <div className="bg-white rounded-xl shadow-xl border border-slate-100 max-w-md w-full p-6 space-y-4 animate-scale-up">
+            <div className="flex items-center space-x-2.5 text-blue-600">
+              <Layers size={18} />
+              <h3 className="text-sm font-bold text-slate-800">请选择新流程模板的当前状态节点</h3>
+            </div>
+            <p className="text-xs text-slate-500 leading-relaxed">
+              您正在将流程模板切换至 <span className="font-bold text-slate-700">【{switchingTemplate.name}】</span>。根据统一流程历史规范，请在此手动指定当前业务对应的具体节点（不进行自动首节推断）：
+            </p>
+            
+            <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+              {switchingTemplate.steps.map(step => {
+                let colorClass = 'bg-blue-500';
+                if (step.color === 'yellow') colorClass = 'bg-yellow-500';
+                else if (step.color === 'green') colorClass = 'bg-green-500';
+                else if (step.color === 'blue') colorClass = 'bg-blue-500';
+                else if (step.color === 'red') colorClass = 'bg-red-500';
+                
+                return (
+                  <button
+                    key={step.id}
+                    onClick={() => {
+                      const selectedStepName = step.name;
+                      
+                      // Add history record for the template switch & initial status set
+                      const newHistoryEntry: ProcessHistory = {
+                        id: `hist-tpl-switch-${Date.now()}`,
+                        time: formatDateTime(new Date()),
+                        type: '流程变更',
+                        fromStep: status || '未指定',
+                        toStep: selectedStepName,
+                        operator: DEFAULT_OPERATOR,
+                        comment: `修改流程模板为【${switchingTemplate.name}】，并手动设定当前状态节点为【${selectedStepName}】`
+                      };
+                      
+                      const updatedHistory = [...historyList, newHistoryEntry];
+                      setStatus(selectedStepName);
+                      
+                      handleSaveField({
+                        templateId: switchingTemplate.id,
+                        templateName: switchingTemplate.name,
+                        status: selectedStepName,
+                        history: updatedHistory
+                      });
+                      
+                      setSwitchingTemplate(null);
+                    }}
+                    className="px-3 py-2 text-xs font-semibold rounded-lg border border-slate-200 text-slate-700 hover:border-blue-500 hover:bg-blue-50 hover:text-blue-700 transition-all text-left truncate flex items-center space-x-2 cursor-pointer"
+                  >
+                    <span className={`w-2.5 h-2.5 rounded-full ${colorClass} flex-shrink-0`} />
+                    <span className="truncate">{step.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+            
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                onClick={() => setSwitchingTemplate(null)}
+                className="px-4 py-1.5 text-xs font-bold text-slate-500 hover:bg-slate-100 rounded-lg cursor-pointer transition-colors"
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>,
     document.body

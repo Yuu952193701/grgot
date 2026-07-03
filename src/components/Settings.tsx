@@ -3,7 +3,7 @@ import { useAppState } from '../context/AppContext';
 import { WorkflowStep, ColorState } from '../types';
 import { DEFAULT_PRE_STEPS, DEFAULT_POST_STEPS, DEFAULT_POST_SERVICE_STEPS, DEFAULT_BID_STEPS } from '../data';
 import { formatDateTime } from '../utils/time';
-import { Plus, Trash2, GripVertical, RefreshCw, Eye, Edit3, Settings2, Database, Download, Upload, RotateCcw, AlertTriangle, FileCheck, Terminal, ShieldAlert, FolderOpen, Tag, ExternalLink, RefreshCw as SpinIcon, Copy, Star } from 'lucide-react';
+import { Plus, Trash2, GripVertical, RefreshCw, Eye, Edit3, Settings2, Database, Download, Upload, RotateCcw, AlertTriangle, FileCheck, Terminal, ShieldAlert, FolderOpen, Tag, ExternalLink, RefreshCw as SpinIcon, Copy, Star, X } from 'lucide-react';
 
 export const Settings: React.FC = () => {
   const {
@@ -84,22 +84,83 @@ export const Settings: React.FC = () => {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
 
-  const handleModifyLocation = async () => {
-    try {
-      const selectedDir = await selectFolder();
-      if (!selectedDir) return;
-      
-      const confirmMove = window.confirm(`系统将自动将当前数据库 data.db 以及 ${backups.length} 份备份文件迁移到新目录：\n\n新目录: ${selectedDir}\n\n迁移期间请勿关闭程序。确定要继续迁移吗？`);
-      if (!confirmMove) return;
+  // Custom modals state to replace browser prompts
+  const [isCreateTemplateModalOpen, setIsCreateTemplateModalOpen] = useState(false);
+  const [newTemplateName, setNewTemplateName] = useState('');
 
-      const res = await migrateDatabase(selectedDir);
-      if (res.success) {
-        alert("数据库迁移成功！新保存目录已生效。");
-      } else {
-        alert(`数据库迁移失败！\n原因: ${res.error || "未知异常"}\n系统将继续使用原数据库。`);
+  const [isRenameTemplateModalOpen, setIsRenameTemplateModalOpen] = useState(false);
+  const [renameTemplateTargetId, setRenameTemplateTargetId] = useState<string | null>(null);
+  const [renameTemplateValue, setRenameTemplateValue] = useState('');
+
+  const [isModifyDbPathModalOpen, setIsModifyDbPathModalOpen] = useState(false);
+  const [modifyDbPathValue, setModifyDbPathValue] = useState('');
+
+  const handleConfirmCreateTemplate = () => {
+    const name = newTemplateName.trim();
+    if (!name) return;
+
+    const newTpl = addWorkflowTemplate({
+      module: moduleType,
+      name,
+      steps: selectedTemplate ? selectedTemplate.steps : (
+        activeWorkflowTab === 'pre' ? DEFAULT_PRE_STEPS :
+        activeWorkflowTab === 'post' ? DEFAULT_POST_STEPS :
+        activeWorkflowTab === 'post-service' ? DEFAULT_POST_SERVICE_STEPS : DEFAULT_BID_STEPS
+      )
+    });
+    if (newTpl) {
+      setSelectedTemplateId(newTpl.id);
+    }
+    setIsCreateTemplateModalOpen(false);
+    setNewTemplateName('');
+  };
+
+  const handleConfirmRenameTemplate = () => {
+    const name = renameTemplateValue.trim();
+    if (!name || !renameTemplateTargetId) return;
+
+    updateWorkflowTemplate(renameTemplateTargetId, { name });
+    setIsRenameTemplateModalOpen(false);
+    setRenameTemplateTargetId(null);
+    setRenameTemplateValue('');
+  };
+
+  const handleConfirmModifyDbPath = async () => {
+    const selectedDir = modifyDbPathValue.trim();
+    if (!selectedDir) return;
+
+    setIsModifyDbPathModalOpen(false);
+    
+    // Simulate migration
+    const res = await migrateDatabase(selectedDir);
+    if (res.success) {
+      alert("数据库迁移成功！新保存目录已生效。");
+    } else {
+      alert(`数据库迁移失败！\n原因: ${res.error || "未知异常"}\n系统将继续使用原数据库。`);
+    }
+  };
+
+  const handleModifyLocation = async () => {
+    if (window.electronAPI) {
+      try {
+        const selectedDir = await window.electronAPI.selectFolder();
+        if (!selectedDir) return;
+        
+        const confirmMove = window.confirm(`系统将自动将当前数据库 data.db 以及 ${backups.length} 份备份文件迁移到新目录：\n\n新目录: ${selectedDir}\n\n迁移期间请勿关闭程序。确定要继续迁移吗？`);
+        if (!confirmMove) return;
+
+        const res = await migrateDatabase(selectedDir);
+        if (res.success) {
+          alert("数据库迁移成功！新保存目录已生效。");
+        } else {
+          alert(`数据库迁移失败！\n原因: ${res.error || "未知异常"}\n系统将继续使用原数据库。`);
+        }
+      } catch (err: any) {
+        alert(`迁移操作发生异常：${err?.message || err}`);
       }
-    } catch (err: any) {
-      alert(`迁移操作发生异常：${err?.message || err}`);
+    } else {
+      setModifyDbPathValue(dbConfig.dbDir);
+      setIsModifyDbPathModalOpen(true);
     }
   };
 
@@ -438,10 +499,9 @@ export const Settings: React.FC = () => {
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            const newName = prompt("请输入新的模板名称:", template.name);
-                            if (newName && newName.trim()) {
-                              updateWorkflowTemplate(template.id, { name: newName.trim() });
-                            }
+                            setRenameTemplateTargetId(template.id);
+                            setRenameTemplateValue(template.name);
+                            setIsRenameTemplateModalOpen(true);
                           }}
                           className="p-1 rounded text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 cursor-pointer transition-colors"
                           title="重命名模板"
@@ -482,21 +542,8 @@ export const Settings: React.FC = () => {
               <button
                 type="button"
                 onClick={() => {
-                  const name = prompt("请输入新流程模板名称:", "自定义流程模板");
-                  if (name && name.trim()) {
-                    const newTpl = addWorkflowTemplate({
-                      module: moduleType,
-                      name: name.trim(),
-                      steps: selectedTemplate ? selectedTemplate.steps : (
-                        activeWorkflowTab === 'pre' ? DEFAULT_PRE_STEPS :
-                        activeWorkflowTab === 'post' ? DEFAULT_POST_STEPS :
-                        activeWorkflowTab === 'post-service' ? DEFAULT_POST_SERVICE_STEPS : DEFAULT_BID_STEPS
-                      )
-                    });
-                    if (newTpl) {
-                      setSelectedTemplateId(newTpl.id);
-                    }
-                  }
+                  setNewTemplateName('');
+                  setIsCreateTemplateModalOpen(true);
                 }}
                 className="w-full py-2 border border-dashed border-blue-200 text-blue-600 hover:bg-blue-50/60 hover:border-blue-300 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center justify-center space-x-1"
               >
@@ -1113,6 +1160,195 @@ export const Settings: React.FC = () => {
               {systemLogs.slice(0, 4).map((log, i) => (
                 <div key={i} className="mb-1 text-left whitespace-pre-wrap">{log}</div>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 1. Custom Create Template Modal */}
+      {isCreateTemplateModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl border border-slate-100 max-w-md w-full p-6 space-y-4 animate-scale-up">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="font-bold text-slate-800 text-base flex items-center space-x-2">
+                <Plus size={18} className="text-blue-500" />
+                <span>新建业务流程模板</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsCreateTemplateModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest">
+                模板名称
+              </label>
+              <input
+                type="text"
+                value={newTemplateName}
+                onChange={(e) => setNewTemplateName(e.target.value)}
+                placeholder="如: 外协服务三阶段审批"
+                className="w-full px-3 py-2 rounded-md border border-slate-200 text-xs focus:ring-1 focus:ring-blue-100 focus:border-blue-500 focus:outline-none font-medium text-slate-700"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleConfirmCreateTemplate();
+                  }
+                }}
+              />
+              <p className="text-[10px] text-slate-400">
+                新创建的模板将默认克隆当前选中的流程步骤（若未选中，则克隆出厂默认步骤）。
+              </p>
+            </div>
+            <div className="flex justify-end space-x-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsCreateTemplateModalOpen(false)}
+                className="px-4 py-1.8 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold rounded-lg cursor-pointer transition-all"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmCreateTemplate}
+                disabled={!newTemplateName.trim()}
+                className={`px-4 py-1.8 rounded-lg text-xs font-bold transition-all ${
+                  newTemplateName.trim()
+                    ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-3xs cursor-pointer'
+                    : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                }`}
+              >
+                创建模板
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 2. Custom Rename Template Modal */}
+      {isRenameTemplateModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl border border-slate-100 max-w-md w-full p-6 space-y-4 animate-scale-up">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="font-bold text-slate-800 text-base flex items-center space-x-2">
+                <Edit3 size={16} className="text-indigo-500" />
+                <span>重命名业务流程模板</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsRenameTemplateModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest">
+                新的模板名称
+              </label>
+              <input
+                type="text"
+                value={renameTemplateValue}
+                onChange={(e) => setRenameTemplateValue(e.target.value)}
+                placeholder="请输入新名称"
+                className="w-full px-3 py-2 rounded-md border border-slate-200 text-xs focus:ring-1 focus:ring-blue-100 focus:border-blue-500 focus:outline-none font-medium text-slate-700"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleConfirmRenameTemplate();
+                  }
+                }}
+              />
+            </div>
+            <div className="flex justify-end space-x-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsRenameTemplateModalOpen(false)}
+                className="px-4 py-1.8 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold rounded-lg cursor-pointer transition-all"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmRenameTemplate}
+                disabled={!renameTemplateValue.trim()}
+                className={`px-4 py-1.8 rounded-lg text-xs font-bold transition-all ${
+                  renameTemplateValue.trim()
+                    ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-3xs cursor-pointer'
+                    : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                }`}
+              >
+                确定
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 3. Custom Modify Database Path Modal */}
+      {isModifyDbPathModalOpen && (
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl shadow-xl border border-slate-100 max-w-md w-full p-6 space-y-4 animate-scale-up">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="font-bold text-slate-800 text-base flex items-center space-x-2">
+                <FolderOpen size={16} className="text-blue-500" />
+                <span>修改数据库存放目录</span>
+              </h3>
+              <button
+                type="button"
+                onClick={() => setIsModifyDbPathModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-50 transition-colors cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            <div className="space-y-3">
+              <label className="block text-xs font-bold text-slate-400 uppercase tracking-widest">
+                物理保存目录路径 (模拟)
+              </label>
+              <input
+                type="text"
+                value={modifyDbPathValue}
+                onChange={(e) => setModifyDbPathValue(e.target.value)}
+                placeholder="请输入绝对路径或相对路径，如: D:\ship-data"
+                className="w-full px-3 py-2 rounded-md border border-slate-200 text-xs focus:ring-1 focus:ring-blue-100 focus:border-blue-500 focus:outline-none font-medium text-slate-700"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleConfirmModifyDbPath();
+                  }
+                }}
+              />
+              <p className="text-[10px] text-slate-400">
+                系统将自动将当前数据库 data.db 以及 {backups.length} 份备份文件迁移到此新目录下。
+              </p>
+            </div>
+            <div className="flex justify-end space-x-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setIsModifyDbPathModalOpen(false)}
+                className="px-4 py-1.8 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 text-xs font-bold rounded-lg cursor-pointer transition-all"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmModifyDbPath}
+                disabled={!modifyDbPathValue.trim()}
+                className={`px-4 py-1.8 rounded-lg text-xs font-bold transition-all ${
+                  modifyDbPathValue.trim()
+                    ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-3xs cursor-pointer'
+                    : 'bg-slate-200 text-slate-400 cursor-not-allowed'
+                }`}
+              >
+                确认迁移
+              </button>
             </div>
           </div>
         </div>

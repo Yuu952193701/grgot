@@ -22,6 +22,7 @@ export const Bidding: React.FC = () => {
     deleteRecommendedTag,
     addGlobalTag,
     workflowTemplates,
+    suppliers,
   } = useAppState();
 
   // Search and Filter States
@@ -429,6 +430,20 @@ export const Bidding: React.FC = () => {
                         {tag}
                       </span>
                     ))}
+
+                    {/* Connected Company (Supplier) */}
+                    {(() => {
+                      const bidSupplier = bid.supplierId ? suppliers.find(s => s.id === bid.supplierId) : null;
+                      const assocContract = bid.contractId ? contracts.find(c => c.id === bid.contractId) : null;
+                      const contractSupplier = assocContract?.supplierId ? suppliers.find(s => s.id === assocContract.supplierId) : null;
+                      const sup = bidSupplier || contractSupplier;
+                      if (!sup) return null;
+                      return (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-3xs">
+                          🏢 {sup.name}
+                        </span>
+                      );
+                    })()}
                   </div>
 
                   {/* Main Title content */}

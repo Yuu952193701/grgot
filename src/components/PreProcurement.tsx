@@ -295,6 +295,7 @@ export const PreProcurement: React.FC = () => {
               
               // Find linked contract
               const assocContract = project.contractId ? contracts.find(c => c.id === project.contractId) : null;
+              const contractSupplier = assocContract?.supplierId ? suppliers.find(s => s.id === assocContract.supplierId) : null;
 
               return (
                 <div
@@ -365,7 +366,38 @@ export const PreProcurement: React.FC = () => {
                         </span>
                       ) : null}
 
-                      {/* 5. Custom tags */}
+                      {/* 5. Connected Company & Amount (from associated contract) */}
+                      {contractSupplier && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-3xs">
+                          🏢 {contractSupplier.name}
+                        </span>
+                      )}
+                      {assocContract?.amount && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-3xs">
+                          {assocContract.amount}
+                        </span>
+                      )}
+
+                      {/* 6. Inquiries / Quoted Companies (if no contract company is connected yet) */}
+                      {(!contractSupplier && project.inquiries && project.inquiries.length > 0) && (
+                        <div className="flex flex-wrap gap-1">
+                          {project.inquiries.map(inq => {
+                            const sup = suppliers.find(s => s.id === inq.supplierId);
+                            if (!sup) return null;
+                            return (
+                              <span key={inq.supplierId} className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold border ${
+                                inq.hasQuoted 
+                                  ? 'bg-emerald-50/40 text-emerald-750 border-emerald-100' 
+                                  : 'bg-slate-50 text-slate-500 border-slate-100'
+                              }`}>
+                                🏢 {sup.name} {inq.hasQuoted ? ' (已报价)' : ' (未报价)'}
+                              </span>
+                            );
+                          })}
+                        </div>
+                      )}
+
+                      {/* 7. Custom tags */}
                       {Array.from(new Set(project.tags)).map(tag => (
                         <span key={tag} className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-blue-50/50 text-blue-600 border border-blue-100">
                           {tag}

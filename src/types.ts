@@ -109,6 +109,7 @@ export interface SettlementBatch {
   remark?: string;   // 批次备注说明
   ship?: string;     // 新增：该批次结算所属船舶 (针对多船舶合同)
   amount?: string;   // 新增：批次结算金额
+  history?: ProcessHistory[]; // 新增：独立结算批次历史
 }
 
 export const SHIPS = [
@@ -165,6 +166,7 @@ export interface BidProject {
   remark: string; // 备注
   folderPath?: string; // 文件夹路径
   contractId?: string; // 关联合同ID (Nullable)
+  supplierId?: string; // 关联的供应商ID (对应公司)
   createdAt: string;
   updatedAt: string;
   history?: ProcessHistory[];
