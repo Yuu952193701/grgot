@@ -505,21 +505,21 @@ export const PreProcurement: React.FC = () => {
 
       {/* Creation Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-2xl border border-slate-100 animate-slide-in text-slate-800 flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 bg-black/40 backdrop-blur-xs">
+          <div className="bg-white rounded-xl shadow-2xl p-5 md:p-6 w-full max-w-lg border border-slate-100 animate-slide-in text-slate-800 flex flex-col my-auto max-h-[85vh]">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4 flex-shrink-0">
               <h3 className="text-base font-bold text-slate-800 flex items-center space-x-2">
                 <span>➕ 新建前置需求项目</span>
               </h3>
               <button
                 onClick={() => setShowCreateModal(false)}
-                className="text-slate-400 hover:text-slate-650 p-1 rounded hover:bg-slate-100 transition-colors cursor-pointer"
+                className="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-100 transition-colors"
               >
                 <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleCreateProject} className="space-y-4 overflow-y-auto pr-1.5 flex-1 pb-2 custom-scrollbar">
+            <form onSubmit={handleCreateProject} className="space-y-4 overflow-y-auto pr-1 flex-1 pb-2 custom-scrollbar">
               
               <div>
                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">

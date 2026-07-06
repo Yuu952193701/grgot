@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useAppState } from '../context/AppContext';
 import { ItemDetailsModal } from './ItemDetailsModal';
 import { AlertCircle, ArrowUpRight, CheckSquare, Layers, Clock, AlertOctagon, HelpCircle, FileText, Landmark, ShieldAlert, BadgeCheck } from 'lucide-react';
@@ -7,24 +7,6 @@ export const Dashboard: React.FC = () => {
   const { projects, contracts, bids, preWorkflow, postWorkflow, bidWorkflow, workflowTemplates } = useAppState();
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [selectedItemType, setSelectedItemType] = useState<'project' | 'contract' | 'bid' | null>(null);
-  const [currentTime, setCurrentTime] = useState<string>('');
-
-  useEffect(() => {
-    const updateTime = () => {
-      const now = new Date();
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const day = String(now.getDate()).padStart(2, '0');
-      const hours = String(now.getHours()).padStart(2, '0');
-      const minutes = String(now.getMinutes()).padStart(2, '0');
-      const seconds = String(now.getSeconds()).padStart(2, '0');
-      setCurrentTime(`${year}-${month}-${day} ${hours}:${minutes}:${seconds}`);
-    };
-    
-    updateTime();
-    const intervalId = setInterval(updateTime, 1000);
-    return () => clearInterval(intervalId);
-  }, []);
 
   // Track yellow (Requires immediate personal actions)
   interface ActionableItem {
@@ -244,7 +226,7 @@ export const Dashboard: React.FC = () => {
         </div>
         <div className="text-xs bg-slate-100 hover:bg-slate-200/50 border border-slate-200/50 px-3 py-1.5 rounded-md text-slate-600 font-mono flex items-center space-x-1.5 shadow-3xs self-start sm:self-center transition-all">
           <span className="h-1.5 w-1.5 rounded-full bg-blue-500"></span>
-          <span>北京时间: {currentTime || '加载中...'}</span>
+          <span>北京时间: 2026-06-21 14:30</span>
         </div>
       </div>
 

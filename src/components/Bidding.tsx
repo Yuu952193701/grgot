@@ -389,177 +389,177 @@ export const Bidding: React.FC = () => {
         ) : (
           <div className="max-h-[600px] overflow-y-auto pr-2 custom-scrollbar space-y-2">
             {sortedBids.map(bid => {
-            const statusColor = getBidStatusColor(bid);
-            const overdue = bid.dueDate && isOverdue(bid.dueDate);
-            const { hasPrev, hasNext } = canMove(bid);
+              const statusColor = getBidStatusColor(bid);
+              const overdue = bid.dueDate && isOverdue(bid.dueDate);
+              const { hasPrev, hasNext } = canMove(bid);
 
-            return (
-              <div
-                key={bid.id}
-                className="bg-white border border-slate-200 hover:border-slate-300 rounded-xl px-5 py-4 shadow-3xs hover:shadow-xs transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
-              >
-                {/* Columns: Left Text content */}
-                <div 
-                  onClick={() => setSelectedItemId(bid.id)}
-                  className="flex-1 cursor-pointer select-none space-y-2"
+              return (
+                <div
+                  key={bid.id}
+                  className="bg-white border border-slate-200 hover:border-slate-300 rounded-xl px-5 py-4 shadow-3xs hover:shadow-xs transition-all flex flex-col md:flex-row md:items-center justify-between gap-4"
                 >
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {/* Ship classification */}
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200/65">
-                      🚢 {bid.ship}
-                    </span>
-
-                    {/* Result Status badge */}
-                    <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold border ${
-                      bid.resultStatus === '已中标' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
-                      bid.resultStatus === '未中标' ? 'bg-slate-50 text-slate-500 border-slate-200' :
-                      bid.resultStatus === '已终止' ? 'bg-rose-50 text-rose-700 border-rose-200' :
-                      'bg-blue-50 text-blue-700 border-blue-200'
-                    }`}>
-                      {bid.resultStatus}
-                    </span>
-
-                    {/* Urgency status */}
-                    {bid.isUrgent && (
-                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200 animate-pulse">
-                        🚨 紧急
+                  {/* Columns: Left Text content */}
+                  <div 
+                    onClick={() => setSelectedItemId(bid.id)}
+                    className="flex-1 cursor-pointer select-none space-y-2"
+                  >
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {/* Ship classification */}
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200/65">
+                        🚢 {bid.ship}
                       </span>
-                    )}
 
-                    {/* Due Date Indicator */}
-                    {bid.dueDate && (
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold border ${
-                        overdue 
-                          ? 'bg-rose-50 text-rose-700 border-rose-200 animate-pulse' 
-                          : 'bg-slate-50 text-slate-600 border-slate-200/85'
+                      {/* Result Status badge */}
+                      <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold border ${
+                        bid.resultStatus === '已中标' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                        bid.resultStatus === '未中标' ? 'bg-slate-50 text-slate-500 border-slate-200' :
+                        bid.resultStatus === '已终止' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                        'bg-blue-50 text-blue-700 border-blue-200'
                       }`}>
-                        📅 截止: {bid.dueDate} {overdue && '(已逾期)'}
+                        {bid.resultStatus}
                       </span>
-                    )}
 
-                    {/* Custom Tags */}
-                    {bid.tags && bid.tags.length > 0 && Array.from(new Set(bid.tags)).map(tag => (
-                      <span key={tag} className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100">
-                        {tag}
-                      </span>
-                    ))}
-
-                    {/* Connected Company (Supplier) */}
-                    {(() => {
-                      const bidSupplier = bid.supplierId ? suppliers.find(s => s.id === bid.supplierId) : null;
-                      const assocContract = bid.contractId ? contracts.find(c => c.id === bid.contractId) : null;
-                      const contractSupplier = assocContract?.supplierId ? suppliers.find(s => s.id === assocContract.supplierId) : null;
-                      const sup = bidSupplier || contractSupplier;
-                      if (!sup) return null;
-                      return (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-3xs">
-                          🏢 {sup.name}
+                      {/* Urgency status */}
+                      {bid.isUrgent && (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200 animate-pulse">
+                          🚨 紧急
                         </span>
-                      );
-                    })()}
-                  </div>
+                      )}
 
-                  {/* Main Title content */}
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-800 hover:text-blue-600 transition-colors">
-                      {bid.name}
-                    </h3>
-                    {bid.tenderUnit && (
-                      <p className="text-[11px] text-slate-400 mt-0.5">
-                        招标单位/发包方: <span className="font-semibold text-slate-500">{bid.tenderUnit}</span>
-                      </p>
+                      {/* Due Date Indicator */}
+                      {bid.dueDate && (
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-semibold border ${
+                          overdue 
+                            ? 'bg-rose-50 text-rose-700 border-rose-200 animate-pulse' 
+                            : 'bg-slate-50 text-slate-600 border-slate-200/85'
+                        }`}>
+                          📅 截止: {bid.dueDate} {overdue && '(已逾期)'}
+                        </span>
+                      )}
+
+                      {/* Custom Tags */}
+                      {bid.tags && bid.tags.length > 0 && Array.from(new Set(bid.tags)).map(tag => (
+                        <span key={tag} className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-amber-50 text-amber-700 border border-amber-100">
+                          {tag}
+                        </span>
+                      ))}
+
+                      {/* Connected Company (Supplier) */}
+                      {(() => {
+                        const bidSupplier = bid.supplierId ? suppliers.find(s => s.id === bid.supplierId) : null;
+                        const assocContract = bid.contractId ? contracts.find(c => c.id === bid.contractId) : null;
+                        const contractSupplier = assocContract?.supplierId ? suppliers.find(s => s.id === assocContract.supplierId) : null;
+                        const sup = bidSupplier || contractSupplier;
+                        if (!sup) return null;
+                        return (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-3xs">
+                            🏢 {sup.name}
+                          </span>
+                        );
+                      })()}
+                    </div>
+
+                    {/* Main Title content */}
+                    <div>
+                      <h3 className="text-sm font-bold text-slate-800 hover:text-blue-600 transition-colors">
+                        {bid.name}
+                      </h3>
+                      {bid.tenderUnit && (
+                        <p className="text-[11px] text-slate-400 mt-0.5">
+                          招标单位/发包方: <span className="font-semibold text-slate-500">{bid.tenderUnit}</span>
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Horizontal detail remark display line */}
+                    {bid.remark && (
+                      <div className="text-[11px] text-slate-450 text-slate-500 flex items-center space-x-1">
+                        <span className="text-blue-500">💡</span>
+                        <span className="italic truncate max-w-xl" title={bid.remark}>备注: {bid.remark}</span>
+                      </div>
                     )}
                   </div>
 
-                  {/* Horizontal detail remark display line */}
-                  {bid.remark && (
-                    <div className="text-[11px] text-slate-450 text-slate-500 flex items-center space-x-1">
-                      <span className="text-blue-500">💡</span>
-                      <span className="italic truncate max-w-xl" title={bid.remark}>备注: {bid.remark}</span>
-                    </div>
-                  )}
-                </div>
-
-                {/* Columns: Right Side Actions & state advancement */}
-                <div className="flex flex-col sm:flex-row sm:items-center gap-3.5 flex-shrink-0">
-                  
-                  {/* Current step with specific color */}
-                  <div className="flex flex-col items-start sm:items-end justify-center">
-                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 select-none">当前标书环节</span>
-                    <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border shadow-3xs ${
-                      statusColor === 'yellow' ? 'bg-amber-50 text-amber-800 border-amber-200' :
-                      statusColor === 'green' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' :
-                      statusColor === 'blue' ? 'bg-blue-50 text-blue-800 border-blue-200' :
-                      'bg-red-50 text-red-800 border-red-200'
-                    }`}>
-                      <span className="mr-1">
-                        {statusColor === 'yellow' ? '🟡' :
-                         statusColor === 'green' ? '🟢' :
-                         statusColor === 'blue' ? '🔵' : '🔴'}
+                  {/* Columns: Right Side Actions & state advancement */}
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-3.5 flex-shrink-0">
+                    
+                    {/* Current step with specific color */}
+                    <div className="flex flex-col items-start sm:items-end justify-center">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1 select-none">当前标书环节</span>
+                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold border shadow-3xs ${
+                        statusColor === 'yellow' ? 'bg-amber-50 text-amber-800 border-amber-200' :
+                        statusColor === 'green' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' :
+                        statusColor === 'blue' ? 'bg-blue-50 text-blue-800 border-blue-200' :
+                        'bg-red-50 text-red-800 border-red-200'
+                      }`}>
+                        <span className="mr-1">
+                          {statusColor === 'yellow' ? '🟡' :
+                           statusColor === 'green' ? '🟢' :
+                           statusColor === 'blue' ? '🔵' : '🔴'}
+                        </span>
+                        {bid.status}
                       </span>
-                      {bid.status}
-                    </span>
+                    </div>
+
+                    {/* Action step increment/decrement triggers */}
+                    <div className="flex items-center gap-1.5 border-l border-slate-100 pl-0.5 sm:pl-3.5">
+                      <button
+                        disabled={!hasPrev}
+                        onClick={() => moveBidStep(bid.id, 'prev')}
+                        className={`p-1.5 rounded-md border ${
+                          hasPrev 
+                        ? 'border-slate-200 bg-white hover:bg-slate-50 text-slate-600 hover:border-slate-300' 
+                            : 'border-slate-100 bg-slate-50/50 text-slate-300 cursor-not-allowed'
+                        } transition-all duration-150 shadow-3xs`}
+                        title="回退流转至上个环节"
+                      >
+                        <ArrowLeft size={13} />
+                      </button>
+
+                      <button
+                        disabled={!hasNext}
+                        onClick={() => moveBidStep(bid.id, 'next')}
+                        className={`p-1.5 rounded-md border ${
+                          hasNext 
+                        ? 'border-slate-200 bg-white hover:bg-slate-50 text-slate-600 hover:border-slate-300' 
+                            : 'border-slate-100 bg-slate-50/50 text-slate-300 cursor-not-allowed'
+                        } transition-all duration-150 shadow-3xs`}
+                        title="推进流转至下个环节"
+                      >
+                        <ArrowRight size={13} />
+                      </button>
+
+                      {/* Quick Edit */}
+                      <button
+                        onClick={() => setSelectedItemId(bid.id)}
+                        className="p-1.5 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 hover:border-slate-300 hover:text-blue-650 transition-all shadow-3xs cursor-pointer"
+                        title="编辑修改标书档案"
+                      >
+                        <Edit2 size={13} />
+                      </button>
+
+                      {/* Delete */}
+                      <button
+                        onClick={() => handleDelete(bid.id, bid.name)}
+                        className="p-1.5 rounded-md border border-slate-200 bg-white hover:bg-rose-50 text-slate-400 hover:border-rose-150 hover:text-rose-600 transition-all shadow-3xs cursor-pointer"
+                        title="彻底注销标书档案"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+
                   </div>
-
-                  {/* Action step increment/decrement triggers */}
-                  <div className="flex items-center gap-1.5 border-l border-slate-100 pl-0.5 sm:pl-3.5">
-                    <button
-                      disabled={!hasPrev}
-                      onClick={() => moveBidStep(bid.id, 'prev')}
-                      className={`p-1.5 rounded-md border ${
-                        hasPrev 
-                      ? 'border-slate-200 bg-white hover:bg-slate-50 text-slate-600 hover:border-slate-300' 
-                          : 'border-slate-100 bg-slate-50/50 text-slate-300 cursor-not-allowed'
-                      } transition-all duration-150 shadow-3xs`}
-                      title="回退流转至上个环节"
-                    >
-                      <ArrowLeft size={13} />
-                    </button>
-
-                    <button
-                      disabled={!hasNext}
-                      onClick={() => moveBidStep(bid.id, 'next')}
-                      className={`p-1.5 rounded-md border ${
-                        hasNext 
-                      ? 'border-slate-200 bg-white hover:bg-slate-50 text-slate-600 hover:border-slate-300' 
-                          : 'border-slate-100 bg-slate-50/50 text-slate-300 cursor-not-allowed'
-                      } transition-all duration-150 shadow-3xs`}
-                      title="推进流转至下个环节"
-                    >
-                      <ArrowRight size={13} />
-                    </button>
-
-                    {/* Quick Edit */}
-                    <button
-                      onClick={() => setSelectedItemId(bid.id)}
-                      className="p-1.5 rounded-md border border-slate-200 bg-white hover:bg-slate-50 text-slate-500 hover:border-slate-300 hover:text-blue-650 transition-all shadow-3xs cursor-pointer"
-                      title="编辑修改标书档案"
-                    >
-                      <Edit2 size={13} />
-                    </button>
-
-                    {/* Delete */}
-                    <button
-                      onClick={() => handleDelete(bid.id, bid.name)}
-                      className="p-1.5 rounded-md border border-slate-200 bg-white hover:bg-rose-50 text-slate-400 hover:border-rose-150 hover:text-rose-600 transition-all shadow-3xs cursor-pointer"
-                      title="彻底注销标书档案"
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
-
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
           </div>
         )}
       </div>
 
       {/* ================= MODAL: CREATE BID ================= */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 overflow-y-auto">
-          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-2xl border border-slate-100 animate-slide-in text-slate-800 flex flex-col max-h-[90vh]">
+        <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 bg-black/40 backdrop-blur-xs">
+          <div className="bg-white rounded-xl shadow-2xl p-5 md:p-6 w-full max-w-lg border border-slate-100 animate-slide-in text-slate-800 flex flex-col my-auto max-h-[85vh]">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4 flex-shrink-0">
               <h3 className="text-base font-bold text-slate-800 flex items-center space-x-2">
                 <span>➕ 注册登记新标书文件案</span>
@@ -572,7 +572,7 @@ export const Bidding: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleCreateBid} className="space-y-4 overflow-y-auto pr-1.5 flex-1 pb-2 custom-scrollbar">
+            <form onSubmit={handleCreateBid} className="space-y-4 overflow-y-auto pr-1 flex-1 pb-2 custom-scrollbar">
               
               {/* Field 1: Name and ID selection */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
