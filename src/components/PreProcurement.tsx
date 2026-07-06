@@ -48,6 +48,18 @@ export const PreProcurement: React.FC = () => {
     }
   }, [showCreateModal, workflowTemplates]);
 
+  // Lock page scrolling when creation modal is open
+  useEffect(() => {
+    if (showCreateModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [showCreateModal]);
+
   // Get all unique workflow steps across all templates of 'pre' module
   const preTemplates = workflowTemplates.filter(t => t.module === 'pre');
   const allWorkflowSteps = preTemplates.length > 0
@@ -55,12 +67,22 @@ export const PreProcurement: React.FC = () => {
     : preWorkflow;
 
   // Helper to resolve color of a project status
-  const getProjectStatusColor = (project: DemandProject) => {
-    const tpl = workflowTemplates.find(t => t.id === project.templateId) || 
+  const getProjectStatusColor = (projectOrStatus: DemandProject | string) => {
+    let statusName: string;
+    let templateId: string | undefined;
+
+    if (typeof projectOrStatus === 'string') {
+      statusName = projectOrStatus;
+    } else {
+      statusName = projectOrStatus.status;
+      templateId = projectOrStatus.templateId;
+    }
+
+    const tpl = (templateId ? workflowTemplates.find(t => t.id === templateId) : null) || 
                 workflowTemplates.find(t => t.module === 'pre' && t.isDefault) ||
                 workflowTemplates.find(t => t.module === 'pre');
     const steps = tpl?.steps || preWorkflow;
-    const step = steps.find(s => s.name === project.status);
+    const step = steps.find(s => s.name === statusName);
     return step ? step.color : 'green';
   };
 
@@ -142,7 +164,7 @@ export const PreProcurement: React.FC = () => {
     const matchesStatus = selectedStatus === 'all' || project.status === selectedStatus;
 
     // 4. Color status match
-    const color = getProjectStatusColor(project.status);
+    const color = getProjectStatusColor(project);
     const matchesColor = selectedColor === 'all' || color === selectedColor;
 
     // 5. Urgency match
@@ -483,21 +505,21 @@ export const PreProcurement: React.FC = () => {
 
       {/* Creation Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs">
-          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-md border border-slate-100 animate-slide-in text-slate-800">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-2xl border border-slate-100 animate-slide-in text-slate-800 flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4 flex-shrink-0">
               <h3 className="text-base font-bold text-slate-800 flex items-center space-x-2">
                 <span>➕ 新建前置需求项目</span>
               </h3>
               <button
                 onClick={() => setShowCreateModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-100 transition-colors"
+                className="text-slate-400 hover:text-slate-650 p-1 rounded hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleCreateProject} className="space-y-4">
+            <form onSubmit={handleCreateProject} className="space-y-4 overflow-y-auto pr-1.5 flex-1 pb-2 custom-scrollbar">
               
               <div>
                 <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
@@ -582,14 +604,14 @@ export const PreProcurement: React.FC = () => {
                 </select>
               </div>
 
-              <div className="bg-slate-50 border border-slate-150 p-2.5 rounded-md text-[11px] text-slate-400 leading-relaxed font-sans mt-2">
+              <div className="bg-slate-50 border border-slate-150 p-2.5 rounded-md text-[11px] text-slate-400 leading-relaxed font-sans mt-2 flex-shrink-0">
                 <strong>💡 智能配置提示：</strong>
                 <p className="mt-1">
                   该前置项目创建后，将直接处于您选择的<b>【{newProjectStatus || preWorkflow[0]?.name || '需求单'}】</b>阶段。您后续可进入项目详情添加标签、绑定合同或编辑备注信息。
                 </p>
               </div>
 
-              <div className="flex items-center justify-end space-x-2 pt-3 border-t border-slate-100">
+              <div className="flex items-center justify-end space-x-2 pt-3 border-t border-slate-100 flex-shrink-0">
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}

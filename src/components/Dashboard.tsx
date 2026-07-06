@@ -1,12 +1,30 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAppState } from '../context/AppContext';
 import { ItemDetailsModal } from './ItemDetailsModal';
 import { AlertCircle, ArrowUpRight, CheckSquare, Layers, Clock, AlertOctagon, HelpCircle, FileText, Landmark, ShieldAlert, BadgeCheck } from 'lucide-react';
 
 export const Dashboard: React.FC = () => {
-  const { projects, contracts, bids, preWorkflow, postWorkflow, bidWorkflow } = useAppState();
+  const { projects, contracts, bids, preWorkflow, postWorkflow, bidWorkflow, workflowTemplates } = useAppState();
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [selectedItemType, setSelectedItemType] = useState<'project' | 'contract' | 'bid' | null>(null);
+  const [currentTime, setCurrentTime] = useState<string>('');
+
+  useEffect(() => {
+    const updateTime = () => {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      const seconds = String(now.getSeconds()).padStart(2, '0');
+      setCurrentTime(`${year}-${month}-${day} ${hours}:${minutes}:${seconds}`);
+    };
+    
+    updateTime();
+    const intervalId = setInterval(updateTime, 1000);
+    return () => clearInterval(intervalId);
+  }, []);
 
   // Track yellow (Requires immediate personal actions)
   interface ActionableItem {
@@ -25,18 +43,39 @@ export const Dashboard: React.FC = () => {
 
   // Helper to resolve color of a project status
   const getProjectStatusColor = (statusName: string) => {
+    // 1. Search in custom 'pre' templates
+    const preTemplates = workflowTemplates.filter(t => t.module === 'pre');
+    for (const tpl of preTemplates) {
+      const step = tpl.steps.find(s => s.name === statusName);
+      if (step) return step.color;
+    }
+    // 2. Fall back to preWorkflow
     const step = preWorkflow.find(s => s.name === statusName);
     return step ? step.color : 'green';
   };
 
   // Helper to resolve color of a contract status
   const getContractStatusColor = (statusName: string) => {
+    // 1. Search in custom 'purchase' or 'service' templates
+    const contractTemplates = workflowTemplates.filter(t => t.module === 'purchase' || t.module === 'service');
+    for (const tpl of contractTemplates) {
+      const step = tpl.steps.find(s => s.name === statusName);
+      if (step) return step.color;
+    }
+    // 2. Fall back to postWorkflow
     const step = postWorkflow.find(s => s.name === statusName);
     return step ? step.color : 'green';
   };
 
   // Helper to resolve color of a bid status
   const getBidStatusColor = (statusName: string) => {
+    // 1. Search in custom 'bid' templates
+    const bidTemplates = workflowTemplates.filter(t => t.module === 'bid');
+    for (const tpl of bidTemplates) {
+      const step = tpl.steps.find(s => s.name === statusName);
+      if (step) return step.color;
+    }
+    // 2. Fall back to bidWorkflow
     const step = bidWorkflow.find(s => s.name === statusName);
     return step ? step.color : 'green';
   };
@@ -205,7 +244,7 @@ export const Dashboard: React.FC = () => {
         </div>
         <div className="text-xs bg-slate-100 hover:bg-slate-200/50 border border-slate-200/50 px-3 py-1.5 rounded-md text-slate-600 font-mono flex items-center space-x-1.5 shadow-3xs self-start sm:self-center transition-all">
           <span className="h-1.5 w-1.5 rounded-full bg-blue-500"></span>
-          <span>北京时间: 2026-06-21 14:30</span>
+          <span>北京时间: {currentTime || '加载中...'}</span>
         </div>
       </div>
 

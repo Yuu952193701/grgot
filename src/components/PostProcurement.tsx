@@ -3,7 +3,7 @@ import { useAppState } from '../context/AppContext';
 import { Contract, SHIPS } from '../types';
 import { ItemDetailsModal } from './ItemDetailsModal';
 import { isOverdue, formatChineseDate } from '../data';
-import { Search, Plus, ArrowLeft, ArrowRight, Trash2, Edit2, FileText, CheckCircle, Clock, Link, AlertTriangle, Layers, X, FolderMinus, Tag } from 'lucide-react';
+import { Search, Plus, ArrowLeft, ArrowRight, Trash2, Edit2, FileText, CheckCircle, Clock, Link, AlertTriangle, Layers, X, FolderMinus, Tag, Check } from 'lucide-react';
 
 interface PostProcurementProps {
   contractType?: 'purchase' | 'service';
@@ -86,13 +86,35 @@ export const PostProcurement: React.FC<PostProcurementProps> = ({ contractType =
     }
   }, [showCreateModal, workflowTemplates, contractType]);
 
+  // Lock page scrolling when creation modal is open
+  useEffect(() => {
+    if (showCreateModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [showCreateModal]);
+
   // Resolver for status color
-  const getContractStatusColor = (contract: Contract) => {
-    const tpl = workflowTemplates.find(t => t.id === contract.templateId) || 
+  const getContractStatusColor = (contractOrStatus: Contract | string, templateId?: string) => {
+    let statusName: string;
+    let tplId = templateId;
+
+    if (typeof contractOrStatus === 'string') {
+      statusName = contractOrStatus;
+    } else {
+      statusName = contractOrStatus.status;
+      tplId = contractOrStatus.templateId || tplId;
+    }
+
+    const tpl = (tplId ? workflowTemplates.find(t => t.id === tplId) : null) || 
                 workflowTemplates.find(t => t.module === (contractType === 'service' ? 'service' : 'purchase') && t.isDefault) ||
                 workflowTemplates.find(t => t.module === (contractType === 'service' ? 'service' : 'purchase'));
     const steps = tpl?.steps || (contractType === 'service' ? postServiceWorkflow : postWorkflow);
-    const step = steps.find(s => s.name === contract.status);
+    const step = steps.find(s => s.name === statusName);
     return step ? step.color : 'green';
   };
 
@@ -144,12 +166,21 @@ export const PostProcurement: React.FC<PostProcurementProps> = ({ contractType =
   };
 
   const handleSelectContractSupplier = (id: string) => {
-    setNewContractSupplierId(id);
-    setShowSupplierSelector(false);
+    setNewContractSupplierId(prev => {
+      const list = prev.split(',').map(s => s.trim()).filter(Boolean);
+      if (list.includes(id)) {
+        return list.filter(item => item !== id).join(',');
+      } else {
+        return [...list, id].join(',');
+      }
+    });
   };
 
-  const handleRemoveContractSupplier = () => {
-    setNewContractSupplierId('');
+  const handleRemoveContractSupplier = (id: string) => {
+    setNewContractSupplierId(prev => {
+      const list = prev.split(',').map(s => s.trim()).filter(Boolean);
+      return list.filter(item => item !== id).join(',');
+    });
   };
 
   const handleContractQuickAddAndSelect = () => {
@@ -161,7 +192,13 @@ export const PostProcurement: React.FC<PostProcurementProps> = ({ contractType =
     const existing = suppliers.find(s => s.name.trim().toLowerCase() === trimmed.toLowerCase());
     if (existing) {
       alert(`对应公司「${existing.name}」已存在，已直接为您选择该供应商。`);
-      setNewContractSupplierId(existing.id);
+      setNewContractSupplierId(prev => {
+        const list = prev.split(',').map(s => s.trim()).filter(Boolean);
+        if (!list.includes(existing.id)) {
+          return [...list, existing.id].join(',');
+        }
+        return prev;
+      });
       setShowQuickAdd(false);
       setQuickSupName('');
       setQuickSupCatId('');
@@ -177,7 +214,13 @@ export const PostProcurement: React.FC<PostProcurementProps> = ({ contractType =
       remark: '快速登记（自新建合同入口）',
       historyCount: 0
     });
-    setNewContractSupplierId(newSup.id);
+    setNewContractSupplierId(prev => {
+      const list = prev.split(',').map(s => s.trim()).filter(Boolean);
+      if (!list.includes(newSup.id)) {
+        return [...list, newSup.id].join(',');
+      }
+      return prev;
+    });
     setShowQuickAdd(false);
     setQuickSupName('');
     setQuickSupCatId('');
@@ -277,7 +320,7 @@ export const PostProcurement: React.FC<PostProcurementProps> = ({ contractType =
     if (!matchesContractType) return false;
 
     // 1. Ship category tab matching
-    const associatedShips = contract.ship.split(',').map(s => s.trim()).filter(Boolean);
+    const associatedShips = (contract.ship || '').split(',').map(s => s.trim()).filter(Boolean);
     const isMultiShipContract = associatedShips.length >= 2;
 
     let matchesShipTab = false;
@@ -302,8 +345,9 @@ export const PostProcurement: React.FC<PostProcurementProps> = ({ contractType =
       : '';
 
     // Find associated supplier name and contract amount
-    const associatedSupplier = contract.supplierId ? suppliers.find(s => s.id === contract.supplierId) : null;
-    const supplierNameLower = associatedSupplier ? associatedSupplier.name.toLowerCase() : '';
+    const supplierIds = (contract.supplierId || '').split(',').map(id => id.trim()).filter(Boolean);
+    const associatedSuppliers = suppliers.filter(s => supplierIds.includes(s.id));
+    const supplierNameLower = associatedSuppliers.map(s => s.name.toLowerCase()).join(' ');
     const contractAmountLower = contract.amount ? contract.amount.toLowerCase() : '';
 
     const matchesSearch = !searchLower ||
@@ -330,9 +374,9 @@ export const PostProcurement: React.FC<PostProcurementProps> = ({ contractType =
       (contract.isMultiSettlement
         ? (contract.settlements?.some(s => {
             const matchesMultiShipFilter = activeShipTab !== 'multi' || multiShipSettlementFilter === 'all' || s.ship === multiShipSettlementFilter;
-            return matchesMultiShipFilter && getContractStatusColor(s.status) === selectedColor;
+            return matchesMultiShipFilter && getContractStatusColor(s.status, contract.templateId) === selectedColor;
           }) || false)
-        : getContractStatusColor(contract.status) === selectedColor);
+        : getContractStatusColor(contract) === selectedColor);
 
     // 5. Urgency checkbox
     const matchesUrgent = filterUrgent === 'all' || contract.isUrgent === filterUrgent;
@@ -389,7 +433,7 @@ export const PostProcurement: React.FC<PostProcurementProps> = ({ contractType =
         </button>
         {SHIPS.map(ship => {
           const shipContractsCount = typeContracts.filter(c => {
-            const associated = c.ship.split(',').map(s => s.trim()).filter(Boolean);
+            const associated = (c.ship || '').split(',').map(s => s.trim()).filter(Boolean);
             return associated.length === 1 && associated[0] === ship;
           }).length;
           return (
@@ -417,7 +461,7 @@ export const PostProcurement: React.FC<PostProcurementProps> = ({ contractType =
               : 'text-slate-500 hover:text-slate-800 hover:bg-slate-200/40'
           }`}
         >
-          ⛓️ 多船舶 ({typeContracts.filter(c => c.ship.split(',').map(s => s.trim()).filter(Boolean).length >= 2).length})
+          ⛓️ 多船舶 ({typeContracts.filter(c => (c.ship || '').split(',').map(s => s.trim()).filter(Boolean).length >= 2).length})
         </button>
       </div>
 
@@ -533,7 +577,8 @@ export const PostProcurement: React.FC<PostProcurementProps> = ({ contractType =
 
               // Resolve demand projects linked to this contract
               const assignedDemandProjects = projects.filter(p => p.contractId === contract.id);
-              const contractSupplier = suppliers.find(s => s.id === contract.supplierId);
+              const contractSupplierIds = (contract.supplierId || '').split(',').map(id => id.trim()).filter(Boolean);
+              const contractSuppliers = suppliers.filter(s => contractSupplierIds.includes(s.id));
 
               return (
                 <div
@@ -601,11 +646,11 @@ export const PostProcurement: React.FC<PostProcurementProps> = ({ contractType =
                       )}
 
                       {/* Bound Company */}
-                      {contractSupplier && (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-3xs">
-                          {contractSupplier.name}
+                      {contractSuppliers.map(sup => (
+                        <span key={sup.id} className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shadow-3xs">
+                          🏢 {sup.name}
                         </span>
-                      )}
+                      ))}
 
                       {/* Red indicator for priority tag */}
                       {contract.isUrgent && (
@@ -663,7 +708,7 @@ export const PostProcurement: React.FC<PostProcurementProps> = ({ contractType =
 
                     {/* Dynamic expansion of settlements inside the card */}
                     {contract.isMultiSettlement && contract.settlements && contract.settlements.length > 0 && (() => {
-                      const contractShips = contract.ship.split(',').map(name => name.trim()).filter(Boolean);
+                      const contractShips = (contract.ship || '').split(',').map(name => name.trim()).filter(Boolean);
                       const displayedSettlements = contract.settlements.filter(s => {
                         if (activeShipTab === 'multi' && multiShipSettlementFilter !== 'all') {
                           return s.ship === multiShipSettlementFilter;
@@ -704,7 +749,7 @@ export const PostProcurement: React.FC<PostProcurementProps> = ({ contractType =
                           ) : (
                             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                               {displayedSettlements.map((s) => {
-                                const bCol = getContractStatusColor(s.status);
+                                const bCol = getContractStatusColor(s.status, contract.templateId);
                                 return (
                                   <div key={s.id} className="bg-slate-50 border border-slate-250 hover:bg-slate-100/50 rounded-lg p-2 flex items-center justify-between transition-colors">
                                     <div className="space-y-0.5 min-w-0 flex-1">
@@ -891,22 +936,22 @@ export const PostProcurement: React.FC<PostProcurementProps> = ({ contractType =
 
       {/* Contract Creation Dialog */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs">
-          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-lg border border-slate-100 animate-slide-in text-slate-800 flex flex-col max-h-[85vh]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-2xl border border-slate-100 animate-slide-in text-slate-800 flex flex-col max-h-[90vh]">
             
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4 flex-shrink-0">
               <h3 className="text-base font-bold text-slate-800 flex items-center space-x-2">
-                <span>➕ 新建后置${contractType === 'service' ? '服务' : '采购'}合同及需求合并</span>
+                <span>➕ 新建后置{contractType === 'service' ? '服务' : '采购'}合同及需求合并</span>
               </h3>
               <button
                 onClick={() => setShowCreateModal(false)}
-                className="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-100 transition-colors"
+                className="text-slate-400 hover:text-slate-650 p-1 rounded hover:bg-slate-100 transition-colors cursor-pointer"
               >
                 <X size={18} />
               </button>
             </div>
 
-            <form onSubmit={handleCreateContract} className="space-y-4 overflow-y-auto pr-1 flex-1 pb-2">
+            <form onSubmit={handleCreateContract} className="space-y-4 overflow-y-auto pr-1.5 flex-1 pb-2 custom-scrollbar">
               
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -1075,11 +1120,11 @@ export const PostProcurement: React.FC<PostProcurementProps> = ({ contractType =
               <div className="bg-slate-50/50 border border-slate-200 rounded-xl p-4 space-y-3">
                 <div className="flex justify-between items-center border-b border-slate-200/60 pb-2">
                   <label className="text-xs font-bold text-slate-700 flex items-center space-x-1.5">
-                    <span>对应公司</span>
+                    <span>对应公司 (可多选)</span>
                   </label>
                   {newContractSupplierId && (
                     <span className="text-[10px] font-mono text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded">
-                      已选择
+                      已选择 {newContractSupplierId.split(',').map(item => item.trim()).filter(Boolean).length} 家
                     </span>
                   )}
                 </div>
@@ -1092,35 +1137,42 @@ export const PostProcurement: React.FC<PostProcurementProps> = ({ contractType =
                     </div>
                   ) : (
                     (() => {
-                      const sup = suppliers.find(s => s.id === newContractSupplierId);
-                      if (!sup) {
+                      const selectedIds = newContractSupplierId.split(',').map(item => item.trim()).filter(Boolean);
+                      const selectedSups = suppliers.filter(s => selectedIds.includes(s.id));
+                      if (selectedSups.length === 0) {
                         return (
                           <div className="text-xs text-slate-400 py-3 text-center border border-dashed border-slate-200 rounded-lg bg-white">
                             选择的供应商已不存在，请重新选择。
                           </div>
                         );
                       }
-                      const catName = supplierCategories.find(c => c.id === sup.categoryId)?.name || '未分类';
                       return (
-                        <div className="flex items-center justify-between py-2 px-3 text-xs bg-white border border-slate-200 rounded-lg">
-                          <div className="flex flex-col min-w-0 flex-1">
-                            <span className="font-bold text-slate-800 text-sm">
-                              {sup.name}
-                            </span>
-                            <span className="text-[10px] text-slate-400 mt-1 font-medium space-x-2">
-                              <span>分类: {catName}</span>
-                              {sup.contact && <span>| 联系人: {sup.contact}</span>}
-                              {sup.phone && <span>| 电话: {sup.phone}</span>}
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={handleRemoveContractSupplier}
-                            className="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 cursor-pointer transition-colors"
-                            title="解除选择"
-                          >
-                            <X size={14} />
-                          </button>
+                        <div className="space-y-1.5">
+                          {selectedSups.map(sup => {
+                            const catName = supplierCategories.find(c => c.id === sup.categoryId)?.name || '未分类';
+                            return (
+                              <div key={sup.id} className="flex items-center justify-between py-2 px-3 text-xs bg-white border border-slate-200 rounded-lg">
+                                <div className="flex flex-col min-w-0 flex-1">
+                                  <span className="font-bold text-slate-800 text-sm">
+                                    {sup.name}
+                                  </span>
+                                  <span className="text-[10px] text-slate-400 mt-1 font-medium space-x-2">
+                                    <span>分类: {catName}</span>
+                                    {sup.contact && <span>| 联系人: {sup.contact}</span>}
+                                    {sup.phone && <span>| 电话: {sup.phone}</span>}
+                                  </span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => handleRemoveContractSupplier(sup.id)}
+                                  className="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 cursor-pointer transition-colors"
+                                  title="解除选择"
+                                >
+                                  <X size={14} />
+                                </button>
+                              </div>
+                            );
+                          })}
                         </div>
                       );
                     })()
@@ -1215,7 +1267,7 @@ export const PostProcurement: React.FC<PostProcurementProps> = ({ contractType =
                         ))}
                       </div>
 
-                      {/* Candidate Suppliers for Single Selection */}
+                      {/* Candidate Suppliers for Multi Selection */}
                       <div className="max-h-40 overflow-y-auto space-y-1 pr-1 border border-slate-100 rounded-md p-1 bg-slate-50/50 font-sans">
                         {(() => {
                           const candidates = suppliers.filter(s => {
@@ -1234,8 +1286,10 @@ export const PostProcurement: React.FC<PostProcurementProps> = ({ contractType =
                             );
                           }
 
+                          const selectedIds = newContractSupplierId.split(',').map(item => item.trim()).filter(Boolean);
+
                           return candidates.map(s => {
-                            const isSelected = newContractSupplierId === s.id;
+                            const isSelected = selectedIds.includes(s.id);
                             const catName = supplierCategories.find(c => c.id === s.categoryId)?.name || '未分类';
 
                             return (
@@ -1248,8 +1302,8 @@ export const PostProcurement: React.FC<PostProcurementProps> = ({ contractType =
                                 }`}
                               >
                                 <div className="mt-0.5 flex-shrink-0">
-                                  <div className={`h-3.5 w-3.5 rounded-full border flex items-center justify-center ${isSelected ? 'border-blue-600 bg-blue-600' : 'border-slate-300 bg-white'}`}>
-                                    {isSelected && <div className="h-1.5 w-1.5 rounded-full bg-white" />}
+                                  <div className={`h-3.5 w-3.5 rounded border flex items-center justify-center ${isSelected ? 'border-blue-600 bg-blue-600' : 'border-slate-300 bg-white'}`}>
+                                    {isSelected && <Check className="h-2.5 w-2.5 text-white" size={10} />}
                                   </div>
                                 </div>
                                 <div className="flex flex-col text-[11px] min-w-0">
@@ -1450,7 +1504,7 @@ export const PostProcurement: React.FC<PostProcurementProps> = ({ contractType =
                   type="submit"
                   className="px-3.5 py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs shadow-3xs transition-all"
                 >
-                  确认建立后置${contractType === 'service' ? '服务' : '采购'}合同
+                  确认建立后置{contractType === 'service' ? '服务' : '采购'}合同
                 </button>
               </div>
 

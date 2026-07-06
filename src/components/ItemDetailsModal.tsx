@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useAppState } from '../context/AppContext';
 import { DemandProject, Contract, SHIPS, SettlementBatch, BidProject, ProcessHistory, WorkflowTemplate } from '../types';
-import { X, Calendar, Plus, Trash2, Tag, AlertTriangle, Search, Link, Layers } from 'lucide-react';
+import { X, Calendar, Plus, Trash2, Tag, AlertTriangle, Search, Link, Layers, Check } from 'lucide-react';
 import { formatFullChineseDate, isOverdue } from '../data';
 import { SupplierDetailsModal } from './SupplierDetailsModal';
 import { formatDateTime } from '../utils/time';
@@ -256,14 +256,28 @@ export const ItemDetailsModal: React.FC<ItemDetailsModalProps> = ({ itemId, type
   };
 
   const handleSelectContractSupplier = (id: string) => {
-    setSupplierId(id);
-    handleSaveField({ supplierId: id });
-    setShowSupplierSelector(false);
+    setSupplierId(prev => {
+      const list = prev.split(',').map(s => s.trim()).filter(Boolean);
+      let newList: string[];
+      if (list.includes(id)) {
+        newList = list.filter(item => item !== id);
+      } else {
+        newList = [...list, id];
+      }
+      const val = newList.join(',');
+      handleSaveField({ supplierId: val || undefined });
+      return val;
+    });
   };
 
-  const handleRemoveContractSupplier = () => {
-    setSupplierId('');
-    handleSaveField({ supplierId: undefined });
+  const handleRemoveContractSupplier = (id: string) => {
+    setSupplierId(prev => {
+      const list = prev.split(',').map(s => s.trim()).filter(Boolean);
+      const newList = list.filter(item => item !== id);
+      const val = newList.join(',');
+      handleSaveField({ supplierId: val || undefined });
+      return val;
+    });
   };
 
   const handleContractQuickAddAndSelect = () => {
@@ -272,7 +286,16 @@ export const ItemDetailsModal: React.FC<ItemDetailsModalProps> = ({ itemId, type
     const existing = suppliers.find(s => s.name.trim().toLowerCase() === trimmed.toLowerCase());
     if (existing) {
       alert(`对应公司「${existing.name}」已存在，已直接为您选择该供应商。`);
-      handleSelectContractSupplier(existing.id);
+      setSupplierId(prev => {
+        const list = prev.split(',').map(s => s.trim()).filter(Boolean);
+        let newList = list;
+        if (!list.includes(existing.id)) {
+          newList = [...list, existing.id];
+        }
+        const val = newList.join(',');
+        handleSaveField({ supplierId: val || undefined });
+        return val;
+      });
       setQuickSupName('');
       setShowQuickAdd(false);
       return;
@@ -282,7 +305,16 @@ export const ItemDetailsModal: React.FC<ItemDetailsModalProps> = ({ itemId, type
       name: trimmed,
       categoryId: catId,
     });
-    handleSelectContractSupplier(newSup.id);
+    setSupplierId(prev => {
+      const list = prev.split(',').map(s => s.trim()).filter(Boolean);
+      let newList = list;
+      if (!list.includes(newSup.id)) {
+        newList = [...list, newSup.id];
+      }
+      const val = newList.join(',');
+      handleSaveField({ supplierId: val || undefined });
+      return val;
+    });
     setQuickSupName('');
     setShowQuickAdd(false);
   };
@@ -335,9 +367,9 @@ export const ItemDetailsModal: React.FC<ItemDetailsModalProps> = ({ itemId, type
   };
 
   // Filter existing contracts that contain the selected project/bid's ship (allowing overlapping ships for multiselect)
-  const currentShipsList = ship.split(',').map(s => s.trim()).filter(Boolean);
+  const currentShipsList = (ship || '').split(',').map(s => s.trim()).filter(Boolean);
   const eligibleContracts = contracts.filter(c => {
-    const contractShips = c.ship.split(',').map(s => s.trim()).filter(Boolean);
+    const contractShips = (c.ship || '').split(',').map(s => s.trim()).filter(Boolean);
     return contractShips.some(s => currentShipsList.includes(s));
   });
   // Find contract associated with this project or bid
@@ -545,7 +577,7 @@ export const ItemDetailsModal: React.FC<ItemDetailsModalProps> = ({ itemId, type
               {(type === 'contract' || type === 'bid') ? (
                 <div id="ship-checklist-container" className="flex flex-wrap gap-2 p-2 border border-slate-200 bg-slate-50/70 rounded-lg">
                   {SHIPS.map(s => {
-                    const isChecked = ship.split(',').map(item => item.trim()).includes(s);
+                    const isChecked = (ship || '').split(',').map(item => item.trim()).includes(s);
                     return (
                       <label 
                         key={s} 
@@ -559,7 +591,7 @@ export const ItemDetailsModal: React.FC<ItemDetailsModalProps> = ({ itemId, type
                           type="checkbox"
                           checked={isChecked}
                           onChange={() => {
-                            const shipList = ship.split(',').map(item => item.trim()).filter(Boolean);
+                            const shipList = (ship || '').split(',').map(item => item.trim()).filter(Boolean);
                             let newList: string[];
                             if (isChecked) {
                               newList = shipList.filter(item => item !== s);
@@ -600,11 +632,11 @@ export const ItemDetailsModal: React.FC<ItemDetailsModalProps> = ({ itemId, type
               <div className="col-span-1 md:col-span-2 bg-slate-50/50 border border-slate-200 rounded-xl p-4 space-y-3">
                 <div className="flex justify-between items-center border-b border-slate-200/60 pb-2">
                   <label className="text-xs font-bold text-slate-700 flex items-center space-x-1.5">
-                    <span>对应公司</span>
+                    <span>对应公司 (可多选)</span>
                   </label>
                   {supplierId && (
                     <span className="text-[10px] font-mono text-emerald-600 font-bold bg-emerald-50 px-2 py-0.5 rounded">
-                      已关联
+                      已关联 {supplierId.split(',').map(item => item.trim()).filter(Boolean).length} 家
                     </span>
                   )}
                 </div>
@@ -617,42 +649,50 @@ export const ItemDetailsModal: React.FC<ItemDetailsModalProps> = ({ itemId, type
                     </div>
                   ) : (
                     (() => {
-                      const sup = suppliers.find(s => s.id === supplierId);
-                      if (!sup) {
+                      const selectedIds = supplierId.split(',').map(item => item.trim()).filter(Boolean);
+                      const selectedSups = suppliers.filter(s => selectedIds.includes(s.id));
+                      if (selectedSups.length === 0) {
                         return (
                           <div className="text-xs text-slate-400 py-4 text-center border border-dashed border-slate-200 rounded-lg bg-white">
                             关联的供应商已不存在，请重新选择。
                           </div>
                         );
                       }
-                      const catName = supplierCategories.find(c => c.id === sup.categoryId)?.name || '未分类';
                       return (
-                        <div 
-                          onClick={() => setActiveSupplierIdForDetailModal(sup.id)}
-                          className="flex items-center justify-between py-2.5 px-3 text-xs bg-white border border-slate-200 rounded-lg hover:border-blue-500 hover:bg-blue-50/10 cursor-pointer transition-all group"
-                        >
-                          <div className="flex flex-col min-w-0 flex-1">
-                            <span className="font-bold text-slate-800 text-sm group-hover:text-blue-600 transition-colors flex items-center space-x-1.5">
-                              <span>{sup.name}</span>
-                              <span className="text-[9px] text-blue-500 font-semibold opacity-0 group-hover:opacity-100 transition-opacity">查看详情 ↗</span>
-                            </span>
-                            <span className="text-[10px] text-slate-400 mt-1 font-medium space-x-2">
-                              <span>分类: {catName}</span>
-                              {sup.contact && <span>| 联系人: {sup.contact}</span>}
-                              {sup.phone && <span>| 电话: {sup.phone}</span>}
-                            </span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              handleRemoveContractSupplier();
-                            }}
-                            className="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 cursor-pointer transition-colors"
-                            title="解除对应公司关联"
-                          >
-                            <X size={14} />
-                          </button>
+                        <div className="space-y-1.5">
+                          {selectedSups.map(sup => {
+                            const catName = supplierCategories.find(c => c.id === sup.categoryId)?.name || '未分类';
+                            return (
+                              <div 
+                                key={sup.id}
+                                onClick={() => setActiveSupplierIdForDetailModal(sup.id)}
+                                className="flex items-center justify-between py-2.5 px-3 text-xs bg-white border border-slate-200 rounded-lg hover:border-blue-500 hover:bg-blue-50/10 cursor-pointer transition-all group"
+                              >
+                                <div className="flex flex-col min-w-0 flex-1">
+                                  <span className="font-bold text-slate-800 text-sm group-hover:text-blue-600 transition-colors flex items-center space-x-1.5">
+                                    <span>{sup.name}</span>
+                                    <span className="text-[9px] text-blue-500 font-semibold opacity-0 group-hover:opacity-100 transition-opacity">查看详情 ↗</span>
+                                  </span>
+                                  <span className="text-[10px] text-slate-400 mt-1 font-medium space-x-2">
+                                    <span>分类: {catName}</span>
+                                    {sup.contact && <span>| 联系人: {sup.contact}</span>}
+                                    {sup.phone && <span>| 电话: {sup.phone}</span>}
+                                  </span>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleRemoveContractSupplier(sup.id);
+                                  }}
+                                  className="p-1 text-slate-400 hover:text-rose-600 rounded hover:bg-rose-50 cursor-pointer transition-colors"
+                                  title="解除对应公司关联"
+                                >
+                                  <X size={14} />
+                                </button>
+                              </div>
+                            );
+                          })}
                         </div>
                       );
                     })()
@@ -747,7 +787,7 @@ export const ItemDetailsModal: React.FC<ItemDetailsModalProps> = ({ itemId, type
                         ))}
                       </div>
 
-                      {/* Candidate Suppliers for Single Selection */}
+                      {/* Candidate Suppliers for Multi Selection */}
                       <div className="max-h-48 overflow-y-auto space-y-1 pr-1 border border-slate-100 rounded-md p-1 bg-slate-50/50">
                         {(() => {
                           const candidates = suppliers.filter(s => {
@@ -766,8 +806,10 @@ export const ItemDetailsModal: React.FC<ItemDetailsModalProps> = ({ itemId, type
                             );
                           }
 
+                          const selectedIds = supplierId.split(',').map(item => item.trim()).filter(Boolean);
+
                           return candidates.map(s => {
-                            const isSelected = supplierId === s.id;
+                            const isSelected = selectedIds.includes(s.id);
                             const catName = supplierCategories.find(c => c.id === s.categoryId)?.name || '未分类';
 
                             return (
@@ -780,8 +822,8 @@ export const ItemDetailsModal: React.FC<ItemDetailsModalProps> = ({ itemId, type
                                 }`}
                               >
                                 <div className="mt-0.5 flex-shrink-0">
-                                  <div className={`h-3.5 w-3.5 rounded-full border flex items-center justify-center ${isSelected ? 'border-blue-600 bg-blue-600' : 'border-slate-300 bg-white'}`}>
-                                    {isSelected && <div className="h-1.5 w-1.5 rounded-full bg-white" />}
+                                  <div className={`h-3.5 w-3.5 rounded border flex items-center justify-center ${isSelected ? 'border-blue-600 bg-blue-600' : 'border-slate-300 bg-white'}`}>
+                                    {isSelected && <Check className="h-2.5 w-2.5 text-white" size={10} />}
                                   </div>
                                 </div>
                                 <div className="flex flex-col text-[11px] min-w-0">
@@ -1064,7 +1106,7 @@ export const ItemDetailsModal: React.FC<ItemDetailsModalProps> = ({ itemId, type
 
                     {/* Batch Content (Status & Due Date) */}
                     {(() => {
-                      const contractShips = ship.split(',').map(s => s.trim()).filter(Boolean);
+                      const contractShips = (ship || '').split(',').map(s => s.trim()).filter(Boolean);
                       return (
                         <div className={`grid ${contractShips.length >= 2 ? 'grid-cols-1 sm:grid-cols-4' : 'grid-cols-1 sm:grid-cols-3'} gap-3`}>
                           <div>

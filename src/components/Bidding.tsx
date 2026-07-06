@@ -60,6 +60,18 @@ export const Bidding: React.FC = () => {
     }
   }, [showCreateModal, workflowTemplates]);
 
+  // Lock page scrolling when creation modal is open
+  useEffect(() => {
+    if (showCreateModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [showCreateModal]);
+
   // Selected Item ID for details modal (direct inline editing)
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
 
@@ -183,7 +195,7 @@ export const Bidding: React.FC = () => {
       tagsMatch;
 
     // 2. Ship filter (allowing matching any ship in comma-separated strings for multiselect)
-    const shipMatch = selectedShip === 'all' || bid.ship.split(',').map(s => s.trim()).includes(selectedShip);
+    const shipMatch = selectedShip === 'all' || (bid.ship || '').split(',').map(s => s.trim()).includes(selectedShip);
 
     // 3. Status filter
     const statusMatch = selectedStatus === 'all' || bid.status === selectedStatus;
@@ -205,7 +217,7 @@ export const Bidding: React.FC = () => {
   });
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 max-w-6xl mx-auto">
       
       {/* 1. Module Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -375,7 +387,8 @@ export const Bidding: React.FC = () => {
             </button>
           </div>
         ) : (
-          sortedBids.map(bid => {
+          <div className="max-h-[600px] overflow-y-auto pr-2 custom-scrollbar space-y-2">
+            {sortedBids.map(bid => {
             const statusColor = getBidStatusColor(bid);
             const overdue = bid.dueDate && isOverdue(bid.dueDate);
             const { hasPrev, hasNext } = canMove(bid);
@@ -538,14 +551,15 @@ export const Bidding: React.FC = () => {
                 </div>
               </div>
             );
-          })
+          })}
+          </div>
         )}
       </div>
 
       {/* ================= MODAL: CREATE BID ================= */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs">
-          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-lg border border-slate-100 animate-slide-in text-slate-800 flex flex-col max-h-[85vh]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4 overflow-y-auto">
+          <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-2xl border border-slate-100 animate-slide-in text-slate-800 flex flex-col max-h-[90vh]">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4 flex-shrink-0">
               <h3 className="text-base font-bold text-slate-800 flex items-center space-x-2">
                 <span>➕ 注册登记新标书文件案</span>
@@ -558,7 +572,7 @@ export const Bidding: React.FC = () => {
               </button>
             </div>
 
-            <form onSubmit={handleCreateBid} className="space-y-4 overflow-y-auto pr-1 flex-1 pb-2">
+            <form onSubmit={handleCreateBid} className="space-y-4 overflow-y-auto pr-1.5 flex-1 pb-2 custom-scrollbar">
               
               {/* Field 1: Name and ID selection */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
