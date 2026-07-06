@@ -379,7 +379,18 @@ export const ItemDetailsModal: React.FC<ItemDetailsModalProps> = ({ itemId, type
   const connectedProjects = contractItem ? projects.filter(p => p.contractId === contractItem.id) : [];
 
   // Filter projects not associated with any contract
-  const unlinkedProjects = projects.filter(p => !p.contractId || p.contractId === '');
+  const unlinkedProjects = projects.filter(p => {
+    const isUnlinked = !p.contractId || p.contractId === '';
+    if (!isUnlinked) return false;
+    
+    // Only display pre-procurement projects belonging to the contract's associated ships
+    if (type === 'contract') {
+      const contractShips = (ship || '').split(',').map(s => s.trim()).filter(Boolean);
+      const projectShips = (p.ship || '').split(',').map(s => s.trim()).filter(Boolean);
+      return projectShips.some(ps => contractShips.includes(ps));
+    }
+    return true;
+  });
 
   return createPortal(
     <div 

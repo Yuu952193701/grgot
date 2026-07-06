@@ -506,7 +506,7 @@ export const PreProcurement: React.FC = () => {
       {/* Creation Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto p-4 bg-black/40 backdrop-blur-xs">
-          <div className="bg-white rounded-xl shadow-2xl p-5 md:p-6 w-full max-w-lg border border-slate-100 animate-slide-in text-slate-800 flex flex-col my-auto max-h-[85vh]">
+          <div className="bg-white rounded-xl shadow-2xl p-5 md:p-6 w-full max-w-lg border border-slate-100 animate-slide-in text-slate-800 flex flex-col my-auto max-h-[calc(100vh-2rem)] overflow-hidden">
             <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4 flex-shrink-0">
               <h3 className="text-base font-bold text-slate-800 flex items-center space-x-2">
                 <span>➕ 新建前置需求项目</span>
